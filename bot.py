@@ -26,7 +26,7 @@ bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN)
 genai.configure(api_key=GEMINI_API_KEY)
 
 # UPDATED MODEL NAME HERE
-model = genai.GenerativeModel('gemini-pro') 
+model = genai.GenerativeModel('gemini-1.5-flash-latest') 
 
 binance_client = Client(BINANCE_API_KEY, BINANCE_SECRET_KEY)
 
