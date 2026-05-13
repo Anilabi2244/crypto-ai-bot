@@ -1,0 +1,6 @@
+python-telegram-bot
+binance-connector
+google-generativeai
+pandas
+pandas_ta
+requests
