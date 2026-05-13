@@ -7,19 +7,19 @@ import pandas_ta as ta
 from flask import Flask
 from threading import Thread
 
-# --- Web Server for Render Port Binding ---
+# --- Web Server for Render ---
 app = Flask('')
 
 @app.route('/')
 def home():
-    return "Crypto Groq Bot is Online!"
+    return "Crypto AI Agent is Online!"
 
 def run_web():
-    # Render automatically sets the PORT environment variable
+    # Render sets the PORT automatically
     port = int(os.environ.get("PORT", 10000))
     app.run(host='0.0.0.0', port=port)
 
-# --- Configuration from Environment Variables ---
+# --- Config from Environment Variables ---
 BINANCE_API_KEY = os.getenv('BINANCE_API_KEY')
 BINANCE_SECRET_KEY = os.getenv('BINANCE_SECRET_KEY')
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
@@ -30,38 +30,32 @@ bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN)
 groq_client = Groq(api_key=GROQ_API_KEY)
 binance_client = Client(BINANCE_API_KEY, BINANCE_SECRET_KEY)
 
-# --- Telegram Commands ---
-
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
-    welcome_text = (
-        "Namaste Buddy! 🙏\n\n"
-        "Nenu nee personal Crypto AI Agent. Groq Llama-3 tho run avthunnanu.\n\n"
-        "👉 /analysis - BTC Market status chudu\n"
-        "👉 Edhaina adugu - Crypto gurinchi chat chey"
+    welcome = (
+        "Namaste Buddy! 🚀\n\n"
+        "Nenu nee Crypto AI Agent. Market analysis mariyu chat kosam ready!\n"
+        "👉 /analysis - BTC Technical Status\n"
+        "👉 Chat chey - Crypto gurinchi emaina adugu"
     )
-    bot.reply_to(message, welcome_text)
+    bot.reply_to(message, welcome)
 
 @bot.message_handler(commands=['analysis'])
 def get_analysis(message):
     try:
         symbol = "BTCUSDT"
-        # Fetching last 100 hours of data
         klines = binance_client.klines(symbol, "1h", limit=100)
         df = pd.DataFrame(klines, columns=['time', 'open', 'high', 'low', 'close', 'vol', 'close_time', 'qav', 'num_trades', 'taker_base', 'taker_quote', 'ignore'])
         
         df['close'] = df['close'].astype(float)
-        # Calculating RSI
         df['RSI'] = ta.rsi(df['close'], length=14)
         
         price = df['close'].iloc[-1]
         rsi = df['RSI'].iloc[-1]
         
-        advice = "NEUTRAL (Wait)"
-        if rsi < 35:
-            advice = "🚀 BUY (Oversold Area)"
-        elif rsi > 65:
-            advice = "⚠️ SELL (Overbought Area)"
+        advice = "NEUTRAL"
+        if rsi < 35: advice = "🚀 BUY (Oversold Area)"
+        elif rsi > 65: advice = "⚠️ SELL (Overbought Area)"
         
         response = (
             f"📊 *{symbol} Technical Analysis*\n"
@@ -73,41 +67,30 @@ def get_analysis(message):
         )
         bot.reply_to(message, response, parse_mode="Markdown")
     except Exception as e:
-        bot.reply_to(message, f"Binance Error: {str(e)}")
-
-# --- AI Chat Logic (Groq Llama-3) ---
+        print(f"Binance Error: {str(e)}")
+        bot.reply_to(message, "Binance analysis lo error vachindi buddy.")
 
 @bot.message_handler(func=lambda message: True)
 def chat_with_groq(message):
     try:
-        # System prompt to set the AI's personality
-        system_msg = "You are a friendly crypto expert. Always respond in a mix of Telugu and English. Give smart trading insights."
-        
+        # Using the stable Llama 3.1 model
         completion = groq_client.chat.completions.create(
-            model="llama3-8b-8192",
+            model="llama-3.1-8b-instant",
             messages=[
-                {"role": "system", "content": system_msg},
+                {"role": "system", "content": "You are a helpful crypto expert. Always respond in a mix of Telugu and English. Keep it friendly."},
                 {"role": "user", "content": message.text}
             ],
             temperature=0.7,
-            max_tokens=512
         )
-        
-        ai_reply = completion.choices[0].message.content
-        bot.reply_to(message, ai_reply)
-        
+        bot.reply_to(message, completion.choices[0].message.content)
     except Exception as e:
-        # Detailed error logging in Render logs
         print(f"DEBUG: Groq Error -> {str(e)}")
-        bot.reply_to(message, "Buddy, AI chinna break teesukundi. Kani technicals pani chestunnayi! /analysis kottu.")
-
-# --- Start the Bot ---
+        bot.reply_to(message, "Buddy, AI chinna break teesukundi. Kani /analysis pani chestundi!")
 
 if __name__ == "__main__":
-    # Start Web Server in a separate thread for Render's health check
     t = Thread(target=run_web)
     t.daemon = True
     t.start()
     
-    print("Bot is starting with Groq AI...")
+    print("Bot is starting...")
     bot.polling(none_stop=True)
