@@ -7,92 +7,84 @@ import pandas_ta as ta
 from flask import Flask
 from threading import Thread
 
-# --- Web Server for Render ---
+# --- Web Server ---
 app = Flask('')
-
 @app.route('/')
-def home():
-    return "Crypto AI Agent is Online!"
+def home(): return "Crypto AI Agent is Online!"
 
 def run_web():
     port = int(os.environ.get("PORT", 10000))
     app.run(host='0.0.0.0', port=port)
 
-# --- Config from Environment Variables ---
+# --- Config ---
 BINANCE_API_KEY = os.getenv('BINANCE_API_KEY')
 BINANCE_SECRET_KEY = os.getenv('BINANCE_SECRET_KEY')
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 GROQ_API_KEY = os.getenv('GROQ_API_KEY')
 
-# Initialize Clients
 bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN)
 groq_client = Groq(api_key=GROQ_API_KEY)
 binance_client = Client(BINANCE_API_KEY, BINANCE_SECRET_KEY)
 
-@bot.message_handler(commands=['start'])
-def send_welcome(message):
-    welcome = (
-        "Namaste Buddy! 🚀\n\n"
-        "Nenu nee personal Crypto AI Agent. Market analysis mariyu chat kosam ready!\n"
-        "👉 /analysis - BTC Live Technical Status chudu\n"
-        "👉 Chat chey - Crypto gurinchi emaina adugu"
-    )
-    bot.reply_to(message, welcome)
+# --- Functions for AI to use ---
 
-@bot.message_handler(commands=['analysis'])
-def get_analysis(message):
+def get_binance_account_details():
     try:
-        symbol = "BTCUSDT"
-        klines = binance_client.klines(symbol, "1h", limit=100)
-        df = pd.DataFrame(klines, columns=['time', 'open', 'high', 'low', 'close', 'vol', 'close_time', 'qav', 'num_trades', 'taker_base', 'taker_quote', 'ignore'])
-        
-        df['close'] = df['close'].astype(float)
-        df['RSI'] = ta.rsi(df['close'], length=14)
-        
-        price = df['close'].iloc[-1]
-        rsi = df['RSI'].iloc[-1]
-        
-        advice = "NEUTRAL"
-        if rsi < 35: advice = "🚀 BUY (Oversold Area)"
-        elif rsi > 65: advice = "⚠️ SELL (Overbought Area)"
-        
-        response = (
-            f"📊 *{symbol} Technical Analysis*\n"
-            f"━━━━━━━━━━━━━━━━━━\n"
-            f"💰 Price: ${price:,.2f}\n"
-            f"📉 RSI (14): {rsi:.2f}\n"
-            f"💡 Action: *{advice}*\n"
-            f"━━━━━━━━━━━━━━━━━━"
-        )
-        bot.reply_to(message, response, parse_mode="Markdown")
+        account = binance_client.account()
+        balances = [b for b in account['balances'] if float(b['free']) > 0 or float(b['locked']) > 0]
+        return str(balances)
     except Exception as e:
-        print(f"Binance Error: {str(e)}")
-        bot.reply_to(message, "Binance analysis lo error vachindi buddy.")
+        return f"Error fetching account: {str(e)}"
+
+def get_open_orders():
+    try:
+        orders = binance_client.get_open_orders()
+        if not orders: return "No open orders right now buddy."
+        return str(orders)
+    except Exception as e:
+        return f"Error fetching orders: {str(e)}"
+
+# --- Telegram Logic ---
+
+@bot.message_handler(commands=['start', 'analysis'])
+def handle_commands(message):
+    if message.text == '/start':
+        bot.reply_to(message, "Namaste Buddy! Groq AI ready. Ask me to check orders or portfolio.")
+    else:
+        # Standard Technical Analysis
+        klines = binance_client.klines("BTCUSDT", "1h", limit=50)
+        price = float(klines[-1][4])
+        bot.reply_to(message, f"📊 BTC Price: ${price:,.2f}\nAction: Use chat for detailed analysis.")
 
 @bot.message_handler(func=lambda message: True)
-def chat_with_groq(message):
+def smart_chat(message):
+    user_msg = message.text.lower()
+    
+    # Context Injection: Manam AI ki actual Binance data ni "System Message" lo pampisthunnam
+    data_context = ""
+    if "order" in user_msg or "trade" in user_msg:
+        data_context = f"\n[LIVE DATA: Open Orders: {get_open_orders()}]"
+    elif "portfolio" in user_msg or "balance" in user_msg:
+        data_context = f"\n[LIVE DATA: Account Balance: {get_binance_account_details()}]"
+
     try:
-        # System instructions to ensure English script and Tanglish style
         completion = groq_client.chat.completions.create(
             model="llama-3.1-8b-instant",
             messages=[
                 {
                     "role": "system", 
-                    "content": "You are a helpful crypto expert. Always respond using the English alphabet (Roman script) only. Use a mix of English and Telugu (Tanglish). STRICTLY DO NOT use Telugu script/characters."
+                    "content": f"You are a helpful crypto expert. Use the provided LIVE DATA to answer. If no data is provided, talk generally. Respond in Tanglish (English script). Be direct, no definitions.{data_context}"
                 },
                 {"role": "user", "content": message.text}
             ],
-            temperature=0.7,
+            temperature=0.2, # Accuracy kosam temperature taggincha
         )
         bot.reply_to(message, completion.choices[0].message.content)
     except Exception as e:
-        print(f"DEBUG: Groq Error -> {str(e)}")
-        bot.reply_to(message, "Buddy, AI chinna break teesukundi. Kani /analysis pani chestundi!")
+        bot.reply_to(message, "Buddy, Groq lo error. Try again later.")
 
 if __name__ == "__main__":
     t = Thread(target=run_web)
     t.daemon = True
     t.start()
-    
-    print("Bot is starting...")
     bot.polling(none_stop=True)
