@@ -1,6 +1,6 @@
-python-telegram-bot
+pyTelegramBotAPI
 binance-connector
 google-generativeai
 pandas
-pandas_ta
+pandas-ta
 requests
