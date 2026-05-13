@@ -1,6 +1,6 @@
 pyTelegramBotAPI
 binance-connector
-google-generativeai
+groq
 pandas
 pandas-ta
 requests
