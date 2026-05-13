@@ -15,7 +15,6 @@ def home():
     return "Crypto AI Agent is Online!"
 
 def run_web():
-    # Render sets the PORT automatically
     port = int(os.environ.get("PORT", 10000))
     app.run(host='0.0.0.0', port=port)
 
@@ -34,8 +33,8 @@ binance_client = Client(BINANCE_API_KEY, BINANCE_SECRET_KEY)
 def send_welcome(message):
     welcome = (
         "Namaste Buddy! 🚀\n\n"
-        "Nenu nee Crypto AI Agent. Market analysis mariyu chat kosam ready!\n"
-        "👉 /analysis - BTC Technical Status\n"
+        "Nenu nee personal Crypto AI Agent. Market analysis mariyu chat kosam ready!\n"
+        "👉 /analysis - BTC Live Technical Status chudu\n"
         "👉 Chat chey - Crypto gurinchi emaina adugu"
     )
     bot.reply_to(message, welcome)
@@ -73,11 +72,14 @@ def get_analysis(message):
 @bot.message_handler(func=lambda message: True)
 def chat_with_groq(message):
     try:
-        # Using the stable Llama 3.1 model
+        # System instructions to ensure English script and Tanglish style
         completion = groq_client.chat.completions.create(
             model="llama-3.1-8b-instant",
             messages=[
-                {"role": "system", "content": "You are a helpful crypto expert. Always respond in a mix of Telugu and English. Keep it friendly."},
+                {
+                    "role": "system", 
+                    "content": "You are a helpful crypto expert. Always respond using the English alphabet (Roman script) only. Use a mix of English and Telugu (Tanglish). STRICTLY DO NOT use Telugu script/characters."
+                },
                 {"role": "user", "content": message.text}
             ],
             temperature=0.7,
